@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ru">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Дневник активностей</title>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.14.3/css/uikit.min.css" />
+		<script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+		<script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-firestore.js"></script>
+	</head>
+	<body>
+		<div class="uk-container">
+			<h1 class="uk-heading-line uk-text-center">
+				<span>Дневник активностей</span>
+			</h1>
+			<form class="uk-form-stacked" id="activityForm">
+				<div class="uk-margin">
+					<label class="uk-form-label" for="activity">Активность:</label>
+					<div class="uk-form-controls">
+						<textarea class="uk-textarea" id="activity" name="activity" rows="3" required></textarea>
+					</div>
+				</div>
+				<div class="uk-margin">
+					<label class="uk-form-label" for="pleasure">Удовольствие (0-10):</label>
+					<div class="uk-form-controls">
+						<input class="uk-input" type="number" id="pleasure" name="pleasure" min="0" max="10" required />
+					</div>
+				</div>
+				<div class="uk-margin">
+					<label class="uk-form-label" for="difficulty">Сложность (0-10):</label>
+					<div class="uk-form-controls">
+						<input class="uk-input" type="number" id="difficulty" name="difficulty" min="0" max="10" required />
+					</div>
+				</div>
+				<div class="uk-margin">
+					<label class="uk-form-label" for="satisfaction">Удовлетворенность (0-10):</label>
+					<div class="uk-form-controls">
+						<input class="uk-input" type="number" id="satisfaction" name="satisfaction" min="0" max="10" required />
+					</div>
+				</div>
+				<button class="uk-button uk-button-primary" type="button" onclick="addActivity()"> Добавить активность </button>
+			</form>
+			<h2>Записи</h2>
+			<div class="uk-overflow-auto">
+				<table class="uk-table uk-table-striped">
+					<thead>
+						<tr>
+							<th>Активность</th>
+							<th>Удовольствие</th>
+							<th>Сложность</th>
+							<th>Удовлетворенность</th>
+							<th>Действия</th>
+						</tr>
+					</thead>
+					<tbody id="activityTable"></tbody>
+				</table>
+			</div>
+		</div>
+		<!-- Модальное окно для редактирования -->
+		<div id="editModal" uk-modal>
+			<div class="uk-modal-dialog uk-modal-body">
+				<h2 class="uk-modal-title">Редактировать активность</h2>
+				<form class="uk-form-stacked" id="editForm">
+					<div class="uk-margin">
+						<label class="uk-form-label" for="editActivity">Активность:</label>
+						<div class="uk-form-controls">
+							<textarea class="uk-textarea" id="editActivity" name="editActivity" rows="3" required></textarea>
+						</div>
+					</div>
+					<div class="uk-margin">
+						<label class="uk-form-label" for="editPleasure">Удовольствие (0-10):</label>
+						<div class="uk-form-controls">
+							<input class="uk-input" type="number" id="editPleasure" name="editPleasure" min="0" max="10" required />
+						</div>
+					</div>
+					<div class="uk-margin">
+						<label class="uk-form-label" for="editDifficulty">Сложность (0-10):</label>
+						<div class="uk-form-controls">
+							<input class="uk-input" type="number" id="editDifficulty" name="editDifficulty" min="0" max="10" required />
+						</div>
+					</div>
+					<div class="uk-margin">
+						<label class="uk-form-label" for="editSatisfaction">Удовлетворенность (0-10):</label>
+						<div class="uk-form-controls">
+							<input class="uk-input" type="number" id="editSatisfaction" name="editSatisfaction" min="0" max="10" required />
+						</div>
+					</div>
+				</form>
+				<p class="uk-text-right">
+					<button class="uk-button uk-button-default uk-modal-close" type="button"> Отмена </button>
+					<button class="uk-button uk-button-primary" type="button" onclick="saveEditedActivity()"> Сохранить </button>
+				</p>
+			</div>
+		</div>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.14.3/js/uikit.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.14.3/js/uikit-icons.min.js"></script>
+		<script>
+			// Инициализация Firebase
+			var firebaseConfig = {
+				apiKey: "AIzaSyC6iMNqCaAiqxuZ4UgXFPhpr1B1UZX0RnU",
+				authDomain: "moneycheck-7bd94.firebaseapp.com",
+				projectId: "moneycheck-7bd94",
+				storageBucket: "moneycheck-7bd94.appspot.com",
+				messagingSenderId: "410734717529",
+				appId: "1:410734717529:web:87eb2a44e96bc350509f48",
+			};
+			firebase.initializeApp(firebaseConfig);
+			var db = firebase.firestore();
+			// Вызов loadActivities() после инициализации Firebase
+			loadActivities();
+			// Глобальная переменная для хранения ID редактируемой активности
+			let editingActivityId = null;
+			// Функция для добавления новой активности
+			function addActivity() {
+				var activity = document.getElementById("activity").value;
+				var pleasure = document.getElementById("pleasure").value;
+				var difficulty = document.getElementById("difficulty").value;
+				var satisfaction = document.getElementById("satisfaction").value;
+				db.collection("activities").add({
+					activity: activity,
+					pleasure: pleasure,
+					difficulty: difficulty,
+					satisfaction: satisfaction,
+				}).then(function(docRef) {
+					console.log("Document written with ID: ", docRef.id);
+					addRowToTable(docRef.id, activity, pleasure, difficulty, satisfaction);
+				}).catch(function(error) {
+					console.error("Error adding document: ", error);
+				});
+				// Очищаем форму
+				document.getElementById("activityForm").reset();
+			}
+			// Функция для добавления строки в таблицу
+			function addRowToTable(id, activity, pleasure, difficulty, satisfaction) {
+				var table = document.getElementById("activityTable");
+				var row = table.insertRow(-1);
+				var cell1 = row.insertCell(0);
+				var cell2 = row.insertCell(1);
+				var cell3 = row.insertCell(2);
+				var cell4 = row.insertCell(3);
+				var cell5 = row.insertCell(4);
+				cell1.textContent = activity;
+				cell2.textContent = pleasure;
+				cell3.textContent = difficulty;
+				cell4.textContent = satisfaction;
+				cell5.innerHTML = `
+
+				<button class="uk-button uk-button-primary" onclick="editActivity('${id}')"><span uk-icon="icon: pencil"></span></button>
+				<button class="uk-button uk-button-danger" onclick="deleteActivity('${id}')"><span uk-icon="icon: trash"></span></button>
+		`;
+			}
+			// Функция для загрузки активностей из Firestore
+			function loadActivities() {
+				db.collection("activities").get().then((querySnapshot) => {
+					querySnapshot.forEach((doc) => {
+						const data = doc.data();
+						addRowToTable(doc.id, data.activity, data.pleasure, data.difficulty, data.satisfaction);
+					});
+				}).catch((error) => {
+					console.log("Error getting documents: ", error);
+				});
+			}
+			// Функция для редактирования активности
+			function editActivity(id) {
+				editingActivityId = id; // Сохраняем ID редактируемой активности
+				// Получаем данные активности из Firestore
+				db.collection("activities").doc(id).get().then((doc) => {
+					if (doc.exists) {
+						const data = doc.data();
+						// Заполняем поля формы текущими данными
+						document.getElementById("editActivity").value = data.activity;
+						document.getElementById("editPleasure").value = data.pleasure;
+						document.getElementById("editDifficulty").value = data.difficulty;
+						document.getElementById("editSatisfaction").value = data.satisfaction;
+						// Открываем модальное окно
+						UIkit.modal("#editModal").show();
+					} else {
+						console.log("No such document!");
+					}
+				}).catch((error) => {
+					console.log("Error getting document:", error);
+				});
+			}
+			// Функция для сохранения отредактированных данных
+			function saveEditedActivity() {
+				const activity = document.getElementById("editActivity").value;
+				const pleasure = document.getElementById("editPleasure").value;
+				const difficulty = document.getElementById("editDifficulty").value;
+				const satisfaction = document.getElementById("editSatisfaction").value;
+				db.collection("activities").doc(editingActivityId).set({
+					activity,
+					pleasure,
+					difficulty,
+					satisfaction
+				}, {
+					merge: true
+				}).then(() => {
+					console.log("Document successfully updated!");
+					// Обновляем строку в таблице
+					var table = document.getElementById("activityTable");
+					for (var i = 0; i < table.rows.length; i++) {
+						var row = table.rows[i];
+						if (row.cells[4].innerHTML.includes(editingActivityId)) {
+							row.cells[0].textContent = activity;
+							row.cells[1].textContent = pleasure;
+							row.cells[2].textContent = difficulty;
+							row.cells[3].textContent = satisfaction;
+							break;
+						}
+					}
+					// Закрываем модальное окно
+					UIkit.modal("#editModal").hide();
+				}).catch((error) => {
+					console.error("Error updating document: ", error);
+				});
+			}
+			// Функция для удаления активности
+			function deleteActivity(id) {
+				if (confirm("Вы действительно хотите удалить эту активность?")) {
+					db.collection("activities").doc(id).delete().then(() => {
+						console.log("Document successfully deleted!");
+						// Удаляем строку из таблицы
+						var table = document.getElementById("activityTable");
+						for (var i = 0; i < table.rows.length; i++) {
+							if (table.rows[i].cells[4].innerHTML.includes(id)) {
+								table.deleteRow(i);
+								break;
+							}
+						}
+					}).catch((error) => {
+						console.error("Error removing document: ", error);
+					});
+				}
+			}
+		</script>
+	</body>
+</html>
